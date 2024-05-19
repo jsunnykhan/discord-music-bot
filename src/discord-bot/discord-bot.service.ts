@@ -10,6 +10,7 @@ export class DiscordBotService {
   constructor() {}
 
   async findMusicTrack(track: string): Promise<MusicTrackDto> {
+    this.logger.log(track);
     const options = {
       method: 'GET',
       url: 'https://spotify-scraper.p.rapidapi.com/v1/track/download',
@@ -21,13 +22,20 @@ export class DiscordBotService {
     };
     try {
       const response = await axios.request(options);
-      
+
+      const ytMusics = response.data.youtubeVideo;
+
+      const playableMusics = ytMusics.audio.find((data: any) =>
+        data.mimeType.includes('opus'),
+      );
+
       return {
-        name: response.data.youtubeVideo.title,
-        url: response.data.youtubeVideo.audio[0].url,
+        name: ytMusics.title,
+        url: playableMusics.url ?? ytMusics.audio[0].url,
       };
     } catch (error: any) {
       this.logger.error('Error from axios', error);
+      throw 'Something went wrong';
     }
   }
 
