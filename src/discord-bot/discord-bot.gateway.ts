@@ -1,10 +1,10 @@
 import { InjectDiscordClient, On, Once } from '@discord-nestjs/core';
 import {
-  joinVoiceChannel,
   createAudioPlayer,
   createAudioResource,
   AudioPlayer,
-  VoiceConnection,
+  generateDependencyReport,
+  StreamType,
 } from '@discordjs/voice';
 import { Injectable, Logger } from '@nestjs/common';
 import { Client, Message } from 'discord.js';
@@ -28,6 +28,7 @@ export class DiscordBotGateway {
   @Once('ready')
   onReady() {
     this.logger.log(`Bot ${this.client.user.tag} is started`);
+    console.log(generateDependencyReport());
   }
 
   @On('messageCreate')
@@ -39,6 +40,7 @@ export class DiscordBotGateway {
       }
 
       if (message.content.startsWith('!play')) {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const [_, ...rest] = message.content.split(' ');
         const track = [...rest].join(' ');
         if (!track.length) return;
@@ -53,7 +55,12 @@ export class DiscordBotGateway {
         if (audio) {
           const connection = await this.service.joinVoiceChannel(message);
           connection.subscribe(this.player);
-          this.player.play(createAudioResource(audio.url));
+          this.player.play(
+            createAudioResource(audio.url, {
+              inputType: StreamType.Opus,
+              inlineVolume: true,
+            }),
+          );
           await component.edit({
             content: `Playing ${audio.name}`,
             components: [],
