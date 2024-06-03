@@ -1,15 +1,21 @@
 import { InjectDiscordClient, On, Once } from '@discord-nestjs/core';
 import {
   createAudioPlayer,
-  createAudioResource,
   AudioPlayer,
   generateDependencyReport,
+  createAudioResource,
   StreamType,
 } from '@discordjs/voice';
 import { Injectable, Logger } from '@nestjs/common';
-import { Client, Message } from 'discord.js';
+import {
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  Client,
+  Message,
+} from 'discord.js';
 import { DiscordBotService } from './discord-bot.service';
-import { MusicTrackDto } from './discord-bot.dto';
+import { StorageService } from 'src/storage/storage.service';
 
 @Injectable()
 export class DiscordBotGateway {
@@ -21,6 +27,8 @@ export class DiscordBotGateway {
     private readonly client: Client,
 
     private readonly service: DiscordBotService,
+
+    private readonly fileService: StorageService,
   ) {
     this.player = createAudioPlayer();
   }
@@ -32,50 +40,50 @@ export class DiscordBotGateway {
   }
 
   @On('messageCreate')
-  async onMessage(message: Message): Promise<void> {
+  async onMessage(message: Message | any): Promise<void> {
     if (!message.author.bot) {
       if (message.content.includes('!join')) {
         const connection = await this.service.joinVoiceChannel(message);
         connection.subscribe(this.player);
-      }
-
-      if (message.content.startsWith('!play')) {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const [_, ...rest] = message.content.split(' ');
-        const track = [...rest].join(' ');
+      } else if (message.content.startsWith('!play')) {
+        const [_g, ...key] = message.content.split(' ');
+        const track = [...key].join(' ');
         if (!track.length) return;
 
         const component = await message.reply({
-          content: `Searching ${rest}`,
+          content: `Searching ${key}`,
           components: [],
         });
 
-        const audio: MusicTrackDto = await this.service.findMusicTrack(track);
-
-        if (audio) {
-          const connection = await this.service.joinVoiceChannel(message);
-          connection.subscribe(this.player);
-          this.player.play(
-            createAudioResource(audio.url, {
-              inputType: StreamType.Opus,
-              inlineVolume: true,
-            }),
+        const files = await this.fileService.findFile(key.toString());
+        if (files) {
+          const file: string = await this.service.customButtonList(
+            files,
+            message,
           );
+
+          const uri = await this.fileService.downloadAbleURI(file);
+          if (uri) {
+            const connection = await this.service.joinVoiceChannel(message);
+            connection.subscribe(this.player);
+            this.player.play(
+              createAudioResource(uri, {
+                inputType: StreamType.Opus,
+                inlineVolume: true,
+              }),
+            );
+          }
           await component.edit({
-            content: `Playing ${audio.name}`,
+            content: `Playing ${file}`,
             components: [],
           });
         }
-      }
-
-      if (message.content.includes('!stop')) {
+      } else if (message.content.includes('!leave')) {
+      } else if (message.content.includes('!stop')) {
         this.player.stop();
-      }
-
-      if (message.content.includes('!pause')) {
+      } else if (message.content.includes('!pause')) {
         this.player.pause();
-      }
-      if (message.content === '!start') {
+      } else if (message.content === '!start') {
         this.player.unpause();
       }
     }
